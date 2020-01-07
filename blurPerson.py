@@ -10,13 +10,18 @@ import numpy as np
 import cv2
 import random
 import sys
-
+import torch
 # import some common detectron2 utilities
 from detectron2 import model_zoo
 from detectron2.engine import DefaultPredictor
 from detectron2.config import get_cfg
 from detectron2.utils.visualizer import Visualizer
 from detectron2.data import MetadataCatalog
+
+
+if len(sys.argv) < 2:
+    print("usage:python rmBgperson.py [input_Image]")
+    sys.exit(0)
 
 im = cv2.imread(sys.argv[1])
 
@@ -35,13 +40,14 @@ cfg.merge_from_list(['MODEL.DEVICE','cpu'])
 # Find a model from detectron2's model zoo. You can either use the https://dl.fbaipublicfiles.... url, or use the detectron2:// shorthand
 cfg.MODEL.WEIGHTS = "detectron2://COCO-InstanceSegmentation/mask_rcnn_R_50_FPN_3x/137849600/model_final_f10217.pkl"
 predictor = DefaultPredictor(cfg)
-outputs = predictor(im)
+outputs = predictor(im) ; size = outputs["instances"].scores.shape[0];
 
-# outputs, max_size person slicing
 poslist = []
 boxes = outputs["instances"].pred_boxes.tensor
 pred = outputs['instances'].pred_classes
-for i in range(outputs['instances'].scores.shape[0]):
+masks = outputs["instances"].pred_masks
+
+for i in range(size):
     if pred[i] == 0:
         wide = abs(boxes[i][2] - boxes[i][0])*abs(boxes[i][3]-boxes[i][1])
         poslist.append(int(wide))
@@ -61,13 +67,13 @@ if poslist[idx] == 0:
 
 x_s,y_s,x_d,y_d = boxes[idx]
 
+gauss = cv2.GaussianBlur(im,(5,5),1e+10)
+median = cv2.medianBlur(im,5)
+tr = torch.where(masks[idx] == True)
+gauss[tr] = im[tr]
+median[tr] = im[tr]
 
-# We can use `Visualizer` to draw the predictions on the image.
-v = Visualizer(im[:, :, ::-1], MetadataCatalog.get(cfg.DATASETS.TRAIN[0]), scale=1.0)
-v = v.draw_instance_predictions(outputs["instances"].to("cpu"))
-vtmp = v.get_image()[:, :, ::-1] #마지막은 뒤집어서??
-#tmp source image slice
-tmp = im[int(y_s):int(y_d),int(x_s):int(x_d)]
-cv2.imshow('imagin',tmp)
+cv2.imshow('Gaussian',gauss)
+cv2.imshow('Median',median)
 cv2.waitKey(0)
 cv2.destroyAllWindows()
