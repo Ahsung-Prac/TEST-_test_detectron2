@@ -19,7 +19,7 @@ from detectron2.utils.visualizer import Visualizer
 from detectron2.utils.visualizer import VisImage
 from detectron2.data import MetadataCatalog
 
-
+#test
 if len(sys.argv) < 2:
     print("usage:python weight_con_detectron.py [input_Image]")
     sys.exit(0)
