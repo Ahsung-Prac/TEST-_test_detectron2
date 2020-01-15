@@ -5,19 +5,16 @@ setup_logger()
 # import some common libraries
 import numpy as np
 import cv2
-import random
-import torch
-import matplotlib.pyplot as plt
-import math
 from imageTools import imageTool
 import sys
+import torch
 # import some common detectron2 utilities
 from detectron2 import model_zoo
 from detectron2.engine import DefaultPredictor
 from detectron2.config import get_cfg
 from detectron2.utils.visualizer import Visualizer
-from detectron2.utils.visualizer import VisImage
 from detectron2.data import MetadataCatalog
+
 
 #test
 if len(sys.argv) < 2:
@@ -30,6 +27,7 @@ if  im is None:
     print("file open fail")
     sys.exit(0)
 
+print('\n\n',im.shape)
 
 cfg = get_cfg()
 
@@ -58,10 +56,14 @@ scores = outputs["instances"].scores
 # Get weight of importance of echo instance, and Main instance index
 idx, weightlist = imageTool.get_weight(outputs, im,False)
 
+if weightlist.size() == torch.Size([0]):
+    print("No instance")
+    sys.exit(0)
+
 print("weightList:",weightlist)
 
 # concatenate close instace from Main_instance
-conlist=imageTool.getconInstances(boxes,idx,weightlist,6,0.5)
+conlist=imageTool.getconInstances(boxes,idx,weightlist,6)
 
 print("concatenation imglist:",conlist)
 print("Main:",idx)
@@ -92,10 +94,18 @@ mx1,my1,mx2,my2 = boxes[idx]  #Main Instace box pos
 #출력
 #cv2.imshow('panotic',vtmp2)
 
+
+vtmp = imageTool.resize(vtmp)
+rmbgImg = imageTool.resize(rmbgImg)
+result = imageTool.resize(imageTool.fitsize(im,Y_S,Y_D,X_S,X_D))
+main = imageTool.resize(imageTool.fitsize(im,my1,my2,mx1,mx2))
+rate16_9 =  imageTool.resize(imageTool.rate16_9(im,Y_S,Y_D,X_S,X_D))
+
+cv2.imshow('16_9',rate16_9)
 cv2.imshow('predict',vtmp)
 cv2.imshow('mask',rmbgImg)
-cv2.imshow('result',imageTool.fitsize(im,Y_S,Y_D,X_S,X_D))
-cv2.imshow('main',imageTool.fitsize(im,my1,my2,mx1,mx2))
+cv2.imshow('result',result)
+cv2.imshow('main',main)
 
 #instance 별로 하나씩 출력
 

@@ -1,5 +1,51 @@
 import torch
 import math
+import cv2
+
+def resize(img):
+    rate = img.shape[0]/img.shape[1]
+    y = img.shape[0]; x = img.shape[1]
+    if y > x :
+        flag = True
+        maxlen = y
+    else :
+        flag = False
+        maxlen = x
+
+    if maxlen > 800:
+        if flag:
+            y = 800;
+            x = int(y/rate)
+        else :
+            x= 800
+            y = int(x*rate)
+
+    dst = cv2.resize(img, dsize=(x,y), interpolation=cv2.INTER_AREA)
+    return dst
+""" 
+sdf
+"""
+def rate16_9(img,y_s,y_d,x_s,x_d):
+    ylen = y_d - y_s
+    xlen = x_d - x_s
+    midx = int((x_s+x_d)/2)
+    midy = int((y_s+y_d)/2)
+    if ylen > xlen*9/16 : flag = True
+    else : flag = False
+
+    if flag:
+        xL = ylen*16 / 18
+        x_s = max(midx - xL,0)
+        x_d = min(midx + xL,img.shape[1]-1)
+    else:
+        yL = xlen*9/32
+        y_s = max(midy- yL,0)
+        y_d = min(midy+yL,img.shape[0]-1)
+
+    y_s, y_d, x_s, x_d = int(y_s), int(y_d), int(x_s), int(x_d)
+    tmg = img[y_s:y_d, x_s:x_d]
+    #tmg = cv2.resize(img, dsize=(x_d,int(x_d*9/16)), interpolation=cv2.INTER_AREA)
+    return tmg
 
 
 def get_weight(outputs,im,print_weight_info_flag = False):
@@ -17,19 +63,22 @@ def get_weight(outputs,im,print_weight_info_flag = False):
         dist = torch.sum((midpos-instancePos) ** 2)
         center = int(linsize/dist+1)
 
-        pred_Kind = pred[i]*2+10
-        if pred[i] == 0 : pred_Kind = 6
+        pred_Kind = math.log(pred[i]*2+1)+10
+        #if pred[i] == 0 : pred_Kind = math.log(pred[i]*2+1)+10
 
         #weight = 박스크기 * 점수^2 / 종류*2+10,,(사람 = 0) * log(center 점수)
+
         box_size = abs(boxes[i][2] - boxes[i][0])*abs(boxes[i][3]-boxes[i][1])
+
         weight = box_size*(scores[i]**1.5)*(math.log(center)+5)/(pred_Kind)
 
         # print weight 정보
         if print_weight_info_flag:
-            print(i,": boxsize:",box_size,"score",scores[i]**1.5,"center",math.log(center)+5,"pred",pred_Kind,"pos:",instancePos,midpos)
+            print(i,":  weight:",weight, " boxsize:",box_size,"score",scores[i]**1.5,"center",math.log(center)+5,"pred",pred_Kind,"pos:",instancePos,midpos)
         weightlist.append(int(weight))
-
-    idx = weightlist.index(max(weightlist))
+    if weightlist != []:
+        idx = weightlist.index(max(weightlist))
+    else : idx = -1
     weightlist = torch.tensor(weightlist)
     return idx, weightlist
 
@@ -52,7 +101,7 @@ def checklinear(x1,x2,y1,y2):
 
     return False
 
-#가까운 정도 ( 겹치거나, 작은 이미지의 1/10 만큼 가깝다면 True )
+#가까운 정도 ( 겹치거나,  이미지의 1/10 만큼 가깝다면 True )큰
 def closelinear(m1, m2, add1, add2, maxline):
     if checklinear(m1, m2, add1, add2) : return True
     if (m1 > add2 and abs(m1-add2) * 10 < maxline) or (add1 > m2 and abs(add1 - m2)*10 < maxline) : return True
@@ -64,8 +113,8 @@ def closelinear(m1, m2, add1, add2, maxline):
 # 축 하나가 lab_lin_lr 비율만큼 겹치고, 충분히 가깝다면 1 return
 def getLapBox(main, add, m_w, a_w, lap_wide_lr=5, lap_lin_lr=0.7):
     #weight가 5배 이상 차이나면 바로 캔슬
-    if 5*a_w <= m_w :
-        return -1
+    #if 5*a_w <= m_w :
+    #   return -1
 
     x_s = max(main[0],add[0]); x_d = min(main[2],add[2])
     y_s = max(main[1],add[1]); y_d = min(main[3],add[3])
@@ -79,15 +128,18 @@ def getLapBox(main, add, m_w, a_w, lap_wide_lr=5, lap_lin_lr=0.7):
     add_wide = (add[2] - add[0])*(add[3]-add[1])
     overLab_wide = (x_d - x_s)*(y_d - y_s)
 
-    shortY = max(main[3]-main[1],add[3]-add[1])
-    shortX = max(main[2]-main[0],add[2]-add[0])
+    shortY = min(main[3]-main[1],add[3]-add[1])
+    shortX = min(main[2]-main[0],add[2]-add[0])
+
+    longY = max(main[3] - main[1], add[3] - add[1])
+    longX = max(main[2] - main[0], add[2] - add[0])
 
 
     if lap_wide_lr*overLab_wide > min(main_wide, add_wide) :
         return int(overLab_wide)
-    elif (y_d-y_s) >= shortY*lap_lin_lr and closelinear(main[0], main[2], add[0], add[2], shortX) :
+    elif (y_d-y_s) >= shortY*lap_lin_lr and closelinear(main[0], main[2], add[0], add[2], longX) :
         return 1
-    elif (x_d-x_s) >= shortX*lap_lin_lr and closelinear(main[1], main[3], add[1], add[3], shortY) :
+    elif (x_d-x_s) >= shortX*lap_lin_lr and closelinear(main[1], main[3], add[1], add[3], longY) :
         return 1
 
     else : return -1
