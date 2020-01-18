@@ -91,7 +91,6 @@ vtmp = v.get_image()[:, :, ::-1]
 
 mx1,my1,mx2,my2 = boxes[idx]  #Main Instace box pos
 
-#출력
 #cv2.imshow('panotic',vtmp2)
 
 
@@ -107,7 +106,7 @@ cv2.imshow('mask',rmbgImg)
 cv2.imshow('result',result)
 cv2.imshow('main',main)
 
-#instance 별로 하나씩 출력
+#instance
 
 # n=0
 # for b in boxes:

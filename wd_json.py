@@ -47,7 +47,7 @@ outputs = predictor(im)
 
 boxes = outputs["instances"].pred_boxes.tensor
 pred = outputs['instances'].pred_classes
-masks = outputs["instances"].pred_masks
+#masks = outputs["instances"].pred_masks
 scores = outputs["instances"].scores
 
 # Get weight of importance of echo instance, and Main instance index
@@ -64,38 +64,16 @@ conlist = imageTool.getconInstances(boxes, idx, weightlist, 6)
 # combine img_box
 Y_S, Y_D, X_S, X_D = imageTool.combinde_img_box(boxes[conlist])
 
-# combinMask
-comebineMask = imageTool.combine_img_mask(masks[conlist])
-
-rmbgImg = imageTool.rmBg(im, comebineMask, 0, Y_S, Y_D, X_S, X_D)
-
-# We can use `Visualizer` to draw the predictions on the image.
-v = Visualizer(
-    im[:, :, ::-1], MetadataCatalog.get(cfg.DATASETS.TRAIN[0]), scale=1.0)
-v = v.draw_instance_predictions(outputs["instances"].to("cpu"))
-vtmp = v.get_image()[:, :, ::-1]
-
-
-# if use ponoptic model..
-# v2 = Visualizer(im[:, :, ::-1], MetadataCatalog.get(cfg.DATASETS.TRAIN[0]), scale=1.0)
-# v2 = v2.draw_panoptic_seg_predictions(panoptic_seg.to("cpu"), segments_info)
-# vtmp2 = v2.get_image()[:, :, ::-1]
-
 
 mx1, my1, mx2, my2 = boxes[idx]  # Main Instace box pos
 
-# 출력
-# cv2.imshow('panotic',vtmp2)
 
-
-vtmp = imageTool.resize(vtmp)
-rmbgImg = imageTool.resize(rmbgImg)
 result = imageTool.resize(imageTool.fitsize(im, Y_S, Y_D, X_S, X_D))
 main = imageTool.resize(imageTool.fitsize(im, my1, my2, mx1, mx2))
 rate16_9 = imageTool.resize(imageTool.rate16_9(im, Y_S, Y_D, X_S, X_D))
 
-# convert bytes
-_, imen = cv2.imencode('.jpeg', vtmp)
+# convert json
+_, imen = cv2.imencode('.jpeg', result)
 imenb = bytes(imen)
 imnb = list(imenb)
 
