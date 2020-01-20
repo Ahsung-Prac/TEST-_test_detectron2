@@ -28,19 +28,22 @@ if  im is None:
     print("file open fail")
     sys.exit(0)
 
-#cv2.imshow('image',im)
-#cv2.waitKey(0)
-#cv2.destroyAllWindows()
 cfg = get_cfg()
+
 # add project-specific config (e.g., TensorMask) here if you're not running a model in detectron2's core library
-cfg.merge_from_file(model_zoo.get_config_file(
-    "../configs/COCO-InstanceSegmentation/mask_rcnn_R_50_FPN_3x.yaml"))
+# start path in configs [dir]
+fileName = "COCO-Keypoints/keypoint_rcnn_R_50_FPN_3x.yaml"
+model = model_zoo.get_config_file(fileName)
+
+cfg.merge_from_file(model)
 cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = 0.5  # set threshold for this model
 cfg.merge_from_list(['MODEL.DEVICE','cpu'])
+
 # Find a model from detectron2's model zoo. You can either use the https://dl.fbaipublicfiles.... url, or use the detectron2:// shorthand
-cfg.MODEL.WEIGHTS = "detectron2://COCO-InstanceSegmentation/mask_rcnn_R_50_FPN_3x/137849600/model_final_f10217.pkl"
+cfg.MODEL.WEIGHTS = "detectron2://"+model_zoo.get_weight_suffix(fileName)
 predictor = DefaultPredictor(cfg)
 outputs = predictor(im)
+
 
 
 # We can use `Visualizer` to draw the predictions on the image.

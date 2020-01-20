@@ -46,29 +46,42 @@ outputs = predictor(im)
 
 boxes = outputs["instances"].pred_boxes.tensor
 pred = outputs['instances'].pred_classes
+masks = outputs['instances'].pred_masks
 scores = outputs["instances"].scores
 
 # Get weight of importance of echo instance, and Main instance index
 idx, weightlist = imageTool.get_weight(outputs, im, False)
 
-
-# # concatenate close instace from Main_instance
-# conlist = imageTool.getconInstances(boxes, idx, weightlist, 6)
-#
-# # combine img_box
-# Y_S, Y_D, X_S, X_D = imageTool.combinde_img_box(boxes[conlist])
-
 if weightlist.size() == torch.Size([0]):
-    rate16_9 = im
-else:
-    mx1, my1, mx2, my2 = boxes[idx]  # Main Instace box pos
-    rate16_9 = imageTool.rate16_9(im, my1, my2, mx1, mx2)
-#
-# result = imageTool.fitsize(im, Y_S, Y_D, X_S, X_D)
-# main = imageTool.fitsize(im, my1, my2, mx1, mx2)
+    _, imen = cv2.imencode('.jpeg', im)
+    imenb = imen.tobytes()
+    result = base64.b64encode(imenb).decode()
+    print(result)
+    sys.exit(0)
+
+# concatenate close instace from Main_instance
+conlist = imageTool.getconInstances(boxes, idx, weightlist, 6)
+
+# combine img_box
+Y_S, Y_D, X_S, X_D = imageTool.combinde_img_box(boxes[conlist])
+
+# combinMask
+comebineMask = imageTool.combine_img_mask(masks[conlist])
+
+#romve background
+rmbgImg = imageTool.rmBg(im,comebineMask,0,Y_S,Y_D,X_S,X_D)
+
+
+mx1, my1, mx2, my2 = boxes[idx]  # Main Instace box pos
+
+
+result = imageTool.limitsize(imageTool.fitsize(im, Y_S, Y_D, X_S, X_D))
+#main = imageTool.resize(imageTool.fitsize(im, my1, my2, mx1, mx2))
+#rate16_9 = imageTool.resize(imageTool.rate16_9(im, Y_S, Y_D, X_S, X_D))
+#rmbgimg = imageTool.resize(imageTool.fitsize(rmbgImg,Y_S, Y_D, X_S, X_D))
 
 # convert Base64
-_, imen = cv2.imencode('.jpeg', rate16_9)
+_, imen = cv2.imencode('.jpeg', result)
 imenb = imen.tobytes()
 result = base64.b64encode(imenb).decode()
 print(result)

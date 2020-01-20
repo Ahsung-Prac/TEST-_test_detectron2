@@ -2,7 +2,7 @@ import torch
 import math
 import cv2
 
-def resize(img):
+def limitsize(img):
     rate = img.shape[0]/img.shape[1]
     y = img.shape[0]; x = img.shape[1]
     if y > x :
@@ -22,30 +22,55 @@ def resize(img):
 
     dst = cv2.resize(img, dsize=(x,y), interpolation=cv2.INTER_AREA)
     return dst
-""" 
-sdf
-"""
-def rate16_9(img,y_s,y_d,x_s,x_d):
-    ylen = y_d - y_s
-    xlen = x_d - x_s
-    midx = int((x_s+x_d)/2)
-    midy = int((y_s+y_d)/2)
-    if ylen > xlen*9/16 : flag = True
-    else : flag = False
 
-    if flag:
-        xL = ylen*16 / 18
-        x_s = max(midx - xL,0)
-        x_d = min(midx + xL,img.shape[1]-1)
+
+
+def expand16_9(ratelen,maxlen,src,dst):
+    # main instance가 9비율의 y축 보다 작은경우 넓힌다.
+    midlen = int((src+dst)/2);
+    len = dst-src;
+    if len < ratelen:
+        src = midlen - int(ratelen / 2);
+        dst = midlen + int(ratelen / 2)
+        # 넒히는 범위가 삐져나갈경우,
+        if src < 0:
+            dst += abs(src);
+            src = 0;
+        elif dst > maxlen:
+            src -= dst - maxlen;
+            dst = maxlen;
+
+    # main instance가 9비율 y축보다 클 경우 줄인다.
+    elif len > ratelen:
+        src = max(0, src - int(len / 17))
+        dst = src + ratelen;
+
+    return src,dst;
+
+
+
+def rate16_9(img,y_s,y_d,x_s,x_d,ratex=16,ratey=9):
+    y_s,y_d,x_s,x_d = int(y_s),int(y_d),int(x_s),int(x_d)
+
+    maxy = img.shape[0]-1; maxx = img.shape[1]-1
+    maxx_16len = int(maxy*ratex/ratey); maxy_9len = int(maxx*ratey/ratex);
+
+    # x축 비율이 짧음
+    if maxx_16len > maxx:
+        # x축을 풀로 잡고, y축을 맞춤
+        x_s= 0; x_d = maxx;
+        y_s,y_d = expand16_9(maxy_9len,maxy,y_s,y_d)
+
+   # y축 비율이 짧음
+    elif maxy_9len > maxy:
+        # y축을 풀로 잡고, x축을 맞춤
+        y_s = 0; y_d = maxx;
+        x_s,x_d = expand16_9(maxx_16len, maxx, x_s, x_d)
     else:
-        yL = xlen*9/32
-        y_s = max(midy- yL,0)
-        y_d = min(midy+yL,img.shape[0]-1)
+        #이미 16:9비율
+        return img;
 
-    y_s, y_d, x_s, x_d = int(y_s), int(y_d), int(x_s), int(x_d)
-    tmg = img[y_s:y_d, x_s:x_d]
-    #tmg = cv2.resize(img, dsize=(x_d,int(x_d*9/16)), interpolation=cv2.INTER_AREA)
-    return tmg
+    return fitsize(img,y_s,y_d,x_s,x_d)
 
 
 def get_weight(outputs,im,print_weight_info_flag = False):
@@ -64,7 +89,7 @@ def get_weight(outputs,im,print_weight_info_flag = False):
         center = int(linsize/dist+1)
 
         pred_Kind = math.log(pred[i]*2+1)+10
-        #if pred[i] == 0 : pred_Kind = math.log(pred[i]*2+1)+10
+        if pred[i] == 0 : pred_Kind = math.log(pred[i]*2+1)+5
 
         #weight = 박스크기 * 점수^2 / 종류*2+10,,(사람 = 0) * log(center 점수)
 
@@ -76,6 +101,7 @@ def get_weight(outputs,im,print_weight_info_flag = False):
         if print_weight_info_flag:
             print(i,":  weight:",weight, " boxsize:",box_size,"score",scores[i]**1.5,"center",math.log(center)+5,"pred",pred_Kind,"pos:",instancePos,midpos)
         weightlist.append(int(weight))
+
     if weightlist != []:
         idx = weightlist.index(max(weightlist))
     else : idx = -1
@@ -112,9 +138,9 @@ def closelinear(m1, m2, add1, add2, maxline):
 #겹치는 Box크기가 작은 이미지의 1/5만큼 겹치면 return
 # 축 하나가 lab_lin_lr 비율만큼 겹치고, 충분히 가깝다면 1 return
 def getLapBox(main, add, m_w, a_w, lap_wide_lr=5, lap_lin_lr=0.7):
-    #weight가 5배 이상 차이나면 바로 캔슬
-    #if 5*a_w <= m_w :
-    #   return -1
+    #weight가 7배 이상 차이나면 바로 캔슬
+    if 7*a_w <= m_w :
+       return -1
 
     x_s = max(main[0],add[0]); x_d = min(main[2],add[2])
     y_s = max(main[1],add[1]); y_d = min(main[3],add[3])
@@ -166,6 +192,7 @@ def edgeSearch(mask_line,flag):
 
 
 def expandMask(masks, size, y_s, y_d, x_s, x_d):
+    if size == 0 : return masks;
     mask = masks.clone()
     masktemp = masks.clone()
     y_s,y_d,x_s,x_d = int(y_s),int(y_d),int(x_s),int(x_d)
@@ -200,7 +227,7 @@ def combinde_img_box(conlist_boxes):
     X_S, Y_S = tmps.values
     X_D, Y_D = tmpd.values
 
-    return Y_S,Y_D,X_S,X_D
+    return int(Y_S),int(Y_D),int(X_S),int(X_D)
 
 def combine_img_mask(conlist_masks):
     combineMask = conlist_masks[0].clone()

@@ -68,9 +68,9 @@ Y_S, Y_D, X_S, X_D = imageTool.combinde_img_box(boxes[conlist])
 mx1, my1, mx2, my2 = boxes[idx]  # Main Instace box pos
 
 
-result = imageTool.resize(imageTool.fitsize(im, Y_S, Y_D, X_S, X_D))
-main = imageTool.resize(imageTool.fitsize(im, my1, my2, mx1, mx2))
-rate16_9 = imageTool.resize(imageTool.rate16_9(im, Y_S, Y_D, X_S, X_D))
+result = imageTool.limitsize(imageTool.fitsize(im, Y_S, Y_D, X_S, X_D))
+main = imageTool.limitsize(imageTool.fitsize(im, my1, my2, mx1, mx2))
+rate16_9 = imageTool.limitsize(imageTool.rate16_9(im, Y_S, Y_D, X_S, X_D))
 
 # convert json
 _, imen = cv2.imencode('.jpeg', result)
